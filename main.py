@@ -1,9 +1,11 @@
+import os
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 import functions_framework
+from dotenv import load_dotenv
 from markdown_it import MarkdownIt
 from playwright.sync_api import sync_playwright
+from slack_sdk import WebClient
 
 
 @functions_framework.cloud_event
@@ -21,15 +23,23 @@ if __name__ == "__main__":
         "../gcp-brownbag-agents/markdown_report_Alignment__2025-05-07 11:29:07.939597.md"
     )
     md_report = report_file.read_text()
-    print("********************")
-    print(md_report)
 
     md = MarkdownIt()
-    for token in md.parse(md_report):
-        print(token)
-    title = "SomeTitle"
+    tokens = md.parse(md_report)
+    if (
+        tokens[0].type == "heading_open"
+        and tokens[0].tag == "h1"
+        and tokens[2].type == "heading_close"
+        and tokens[2].tag == "h1"
+    ):
+        title = tokens[1].content
+    else:
+        print("Unexpected first few tokens:")
+        for token in tokens[:3]:
+            print(token.type, token.tag, token.content)
+        title = "Grimaud Tech Report"
+
     html_report = md.render(md_report)
-    print("********************")
     html_preface = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -54,9 +64,8 @@ if __name__ == "__main__":
 </html>
     """
     html_report = html_preface + html_report + html_closing
-    print(html_report)
 
-    output_path = Path("./test_output.pdf")
+    output_path = Path(f"./{report_file.stem}.pdf")
 
     temp_html = Path("./test_output.html")
     temp_html.write_text(html_report)
@@ -71,15 +80,12 @@ if __name__ == "__main__":
         )
         browser.close()
 
-    if False:
-        with NamedTemporaryFile("w") as temp_html:
-            temp_html.write(html_report)
-            print("********************")
-            print(temp_html.name)
-            print(Path(temp_html.name).read_text()[:100])
-            with sync_playwright() as p:
-                browser = p.chromium.launch()
-                page = browser.new_page()
-                page.goto(f"file:///{temp_html.name}")
-                page.pdf(path=output_path)
-                browser.close()
+    # do the Slack thing
+    load_dotenv()
+    client = WebClient(os.getenv("SLACK_BOT_TOKEN"))
+    new_slack_file = client.files_upload_v2(
+        title=title,
+        file=output_path,
+        initial_comment="This is a test report upload",
+        channel=os.getenv("SLACK_CHANNEL_ID"),
+    )
