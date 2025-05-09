@@ -12,7 +12,7 @@ from slack_sdk import WebClient
 def post_report_to_slack(cloud_event):
     # check that the file created in the cloud event follows *markdown_report*md
 
-    # Convert the markdown file to a PDF file according to the script below, save it as temporary
+    # Convert the markdown file to a PDF file according to the script below, save it in the same bucket as the original file
 
     # Use the slack API to upload the file to the correct channel. get the slack API key and the channel_id from environment variables.
     pass
