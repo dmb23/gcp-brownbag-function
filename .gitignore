@@ -1,4 +1,7 @@
+__pycache__/
 .aider*
 .env
 test_output*
 markdown_report*pdf
+tmp_report.md
+report.html

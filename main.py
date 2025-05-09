@@ -32,6 +32,7 @@ def post_report_to_slack(cloud_event: CloudEvent) -> None:
     temp_md_file = Path("./tmp_report.md")
     blob.download_to_filename(temp_md_file)
     md_report = temp_md_file.read_text()
+    temp_md_file.unlink()
 
     # Parse the markdown to extract the title
     md = MarkdownIt()
@@ -93,6 +94,8 @@ def post_report_to_slack(cloud_event: CloudEvent) -> None:
         )
         browser.close()
 
+    temp_html.unlink()
+
     # Upload the PDF back to the same bucket
     pdf_blob = bucket.blob(f"{Path(file_path).stem}.pdf")
     pdf_blob.upload_from_filename(output_path)
@@ -118,6 +121,8 @@ def post_report_to_slack(cloud_event: CloudEvent) -> None:
             "Please specify the SLACK_CHANNEL_ID environment variable to publish the report in a channel!"
         )
         return
+    finally:
+        output_path.unlink()
 
     print(f"Successfully processed {file_path} and posted to Slack")
     return
