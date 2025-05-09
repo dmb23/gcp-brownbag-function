@@ -10,12 +10,101 @@ from slack_sdk import WebClient
 
 @functions_framework.cloud_event
 def post_report_to_slack(cloud_event):
-    # check that the file created in the cloud event follows *markdown_report*md
-
-    # Convert the markdown file to a PDF file according to the script below, save it in the same bucket as the original file
-
-    # Use the slack API to upload the file to the correct channel. get the slack API key and the channel_id from environment variables.
-    pass
+    # Extract file information from the cloud event
+    file_path = cloud_event.data["name"]
+    bucket = cloud_event.data["bucket"]
+    
+    # Check that the file created in the cloud event follows *markdown_report*md pattern
+    if not Path(file_path).name.startswith("markdown_report") or not file_path.endswith(".md"):
+        print(f"Ignoring file {file_path} as it doesn't match the expected pattern")
+        return
+    
+    # Download the file from the bucket
+    from google.cloud import storage
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket)
+    blob = bucket.blob(file_path)
+    
+    # Create a temporary file to store the markdown content
+    temp_md_file = Path("/tmp/report.md")
+    blob.download_to_filename(temp_md_file)
+    md_report = temp_md_file.read_text()
+    
+    # Parse the markdown to extract the title
+    md = MarkdownIt()
+    tokens = md.parse(md_report)
+    if (
+        tokens[0].type == "heading_open"
+        and tokens[0].tag == "h1"
+        and tokens[2].type == "heading_close"
+        and tokens[2].tag == "h1"
+    ):
+        title = tokens[1].content
+    else:
+        print("Unexpected first few tokens:")
+        for token in tokens[:3]:
+            print(token.type, token.tag, token.content)
+        title = "Grimaud Tech Report"
+    
+    # Convert markdown to HTML
+    html_report = md.render(md_report)
+    html_preface = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; padding: 20px; }}
+        img {{
+          max-width: 100%;
+          height: auto;
+        }}
+    </style>
+</head>
+<body>
+<div>
+        """
+    html_closing = """
+</div>
+</body>
+</html>
+    """
+    html_report = html_preface + html_report + html_closing
+    
+    # Create temporary files for HTML and PDF
+    temp_html = Path("/tmp/report.html")
+    temp_html.write_text(html_report)
+    output_path = Path(f"/tmp/{Path(file_path).stem}.pdf")
+    
+    # Convert HTML to PDF using Playwright
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.goto(f"file:///{temp_html.resolve()}")
+        page.pdf(
+            path=output_path,
+            format="A4",
+            margin={"top": "3cm", "bottom": "2cm", "left": "2cm", "right": "2cm"},
+        )
+        browser.close()
+    
+    # Upload the PDF back to the same bucket
+    pdf_blob = bucket.blob(f"{Path(file_path).stem}.pdf")
+    pdf_blob.upload_from_filename(output_path)
+    
+    # Post the PDF to Slack
+    load_dotenv()
+    client = WebClient(os.getenv("SLACK_BOT_TOKEN"))
+    new_slack_file = client.files_upload_v2(
+        title=title,
+        file=output_path,
+        initial_comment=f"New report: {title}",
+        channel=os.getenv("SLACK_CHANNEL_ID"),
+    )
+    
+    return f"Successfully processed {file_path} and posted to Slack"
 
 
 if __name__ == "__main__":
