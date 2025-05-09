@@ -1,0 +1,14 @@
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+
+steps:
+- name: gcr.io/k8s-skaffold/pack
+  entrypoint: pack
+  args:
+  - build
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}
+  - --builder
+  - gcr.io/buildpacks/builder:latest
+images:
+- '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}'
