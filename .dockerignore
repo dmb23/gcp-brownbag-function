@@ -1,7 +1,6 @@
 __pycache__/
 .aider*
 .env
-dockerenv_file
 .venv/
 test_output*
 markdown_report*pdf
