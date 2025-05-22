@@ -106,19 +106,21 @@ async def cloudevent_trigger(request: Request):
 
     # Post the PDF to Slack
     try:
-        client = WebClient(os.environ["SLACK_BOT_TOKEN"])
+        client = WebClient(os.environ["SLACK_BOT_TOKEN"].strip('"'))
     except KeyError:
         print(
             "Please specify the SLACK_BOT_TOKEN environment variable to post to Slack!"
         )
         return
 
+    client.api_test()
+
     try:
         client.files_upload_v2(
             title=title,
             file=output_path,
             initial_comment=f"New report: {title}",
-            channel=os.environ["SLACK_CHANNEL_ID"],
+            channel=os.environ["SLACK_CHANNEL_ID"].strip('"'),
         )
     except KeyError:
         print(
