@@ -132,3 +132,12 @@ async def cloudevent_trigger(request: Request):
 
     print(f"Successfully processed {file_path} and posted to Slack")
     return
+
+
+if __name__ == "__main__":
+    import os
+
+    import uvicorn
+
+    server_port = int(os.getenv("PORT", 8080))
+    uvicorn.run("app:app", host="0.0.0.0", port=server_port, log_level="info")
